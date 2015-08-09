@@ -4,33 +4,62 @@ import scala.annotation.tailrec
 import scala.collection.generic.{ CanBuildFrom, ImmutableMapFactory }
 import scala.collection.mutable.OpenHashMap
 
-sealed trait RouteKind
+private[trie] object RouteKinds {
+  sealed trait RouteKind
 
-@SerialVersionUID(1L)
-private case object StaticRoute extends RouteKind // /uri
+  @SerialVersionUID(1L)
+  case object StaticRoute extends RouteKind // /uri
 
-@SerialVersionUID(1L)
-private case class WildcardRoute( // /*param
-    name: String
-) extends RouteKind {
-  require(name.nonEmpty, "name can't be empty")
+  @SerialVersionUID(1L)
+  case class WildcardRoute( // /*param
+      name: String
+  ) extends RouteKind {
+    require(name.nonEmpty, "name can't be empty")
+  }
+
+  @SerialVersionUID(1L)
+  case class ParameterRoute( // /:param
+      name: String
+  ) extends RouteKind {
+    require(name.nonEmpty, "name can't be empty")
+  }
 }
+import RouteKinds._
 
-@SerialVersionUID(1L)
-private case class ParameterRoute( // /:param
-    name: String
-) extends RouteKind {
-  require(name.nonEmpty, "name can't be empty")
+object RouteMethods {
+  sealed trait RouteMethod
+
+  @SerialVersionUID(1L)
+  case object GET extends RouteMethod
+
+  @SerialVersionUID(1L)
+  case object OPTIONS extends RouteMethod
+
+  @SerialVersionUID(1L)
+  case object POST extends RouteMethod
+
+  @SerialVersionUID(1L)
+  case object PUT extends RouteMethod
+
+  @SerialVersionUID(1L)
+  case object PATCH extends RouteMethod
+
+  @SerialVersionUID(1L)
+  case object DELETE extends RouteMethod
+
+  @SerialVersionUID(1L)
+  case object HEAD extends RouteMethod
 }
+import RouteMethods._
 
 @SerialVersionUID(1L)
 private[trie] case class RouteNode[T](
     key:            String,
-    value:          Option[T],
     kind:           RouteKind,
+    values:         OpenHashMap[RouteMethod, T]     = OpenHashMap.empty[RouteMethod, T],
     children:       OpenHashMap[Char, RouteNode[T]] = OpenHashMap.empty[Char, RouteNode[T]],
     childParameter: Option[RouteNode[T]]            = None
-) extends Traversable[(String, T)] {
+) extends Traversable[(String, (RouteMethod, T))] {
   require(key.nonEmpty, s"Key can't be empty: $this")
   if (kind.isInstanceOf[WildcardRoute])
     require(key.head == '*', s"Wildcard route node must start with prefix symbol '*': $this")
@@ -39,13 +68,18 @@ private[trie] case class RouteNode[T](
   if (kind == StaticRoute)
     require(!key.exists(nonStaticPrefix), s"Static route node must not start with prefix symbol ':' or '*': $this")
 
-  def get(k: String) =
-    getTrie(cleanKey(k)) match {
-      case Some((RouteNode(_, Some(v), _, _, _), p)) => Some(v, p)
-      case _                                         => None
+  def get(m: RouteMethod, k: String) =
+    getTrie(m, cleanKey(k)) match {
+      case Some((RouteNode(_, _, hm, _, _), p)) => hm.get(m) match {
+        case Some(v) => Some(v, p)
+        case _       => None
+      }
+      case _ =>
+        None
     }
 
   private def getTrie(
+    m:      RouteMethod,
     k:      String,
     params: Option[OpenHashMap[String, String]] = None
   ): Option[(RouteNode[T], Option[OpenHashMap[String, String]])] = {
@@ -58,12 +92,12 @@ private[trie] case class RouteNode[T](
       if (k == key) Some((this, params))
       else if (kind == StaticRoute && k.startsWith(key)) {
         children.get(k(key.length)) match {
-          case Some(n) => n.getTrie(k.substring(key.length), params)
+          case Some(n) => n.getTrie(m, k.substring(key.length), params)
           case _       => None
         }
       } else if (kind.isInstanceOf[ParameterRoute]) {
         children.get(k.head) match {
-          case Some(n) => n.getTrie(k, params)
+          case Some(n) => n.getTrie(m, k, params)
           case _       => None
         }
       } else None
@@ -84,7 +118,7 @@ private[trie] case class RouteNode[T](
             params += ((name, param))
             val offset = param.length + key.length
             if (k.length > offset)
-              n.getTrie(k.substring(offset), Some(params))
+              n.getTrie(m, k.substring(offset), Some(params))
             else Some((n, Some(params)))
         }
       case _ => None
@@ -103,42 +137,44 @@ private[trie] case class RouteNode[T](
   private def nonStaticPrefix(k: String): Boolean =
     nonStaticPrefix(k.head)
 
-  def `+`(kv: (String, T)) = {
+  def `+`(kv: (String, (RouteMethod, T))): RouteNode[T] = {
     require(kv._1.nonEmpty, s"Key can't be empty: $kv")
 
     val k = cleanKey(kv._1)
-    val v = kv._2
+    val m = kv._2._1
+    val v = kv._2._2
 
-    if (nonStaticPrefix(k)) addToChildParameter(k, v)
+    if (nonStaticPrefix(k)) addToChildParameter(m, k, v)
     else {
-      if (k == key) RouteNode(k, Some(v), kind, children, childParameter)
+      if (k == key)
+        RouteNode(k, kind, values += ((m, v)), children, childParameter)
       else if (k.startsWith(key)) {
         val newKey = k.substring(key.length)
-        if (nonStaticPrefix(newKey)) addToChildParameter(newKey, v)
+        if (nonStaticPrefix(newKey)) addToChildParameter(m, newKey, v)
         else {
-          children += (newKey(0) -> addToChildren(newKey, v))
+          children += (newKey(0) -> addToChildren(m, newKey, v))
           this
         }
       } else if (key.startsWith(k)) {
         val newKey = key.substring(k.length)
         val cc = OpenHashMap(
-          newKey(0) -> RouteNode(newKey, value, kind, children, childParameter)
+          newKey(0) -> RouteNode(newKey, kind, values, children, childParameter)
         )
-        RouteNode(k, Some(v), StaticRoute, cc, None)
+        RouteNode(k, StaticRoute, OpenHashMap(m -> v), cc, None)
       } else {
         val newKey = longestCommonPart(k, key)
         val k1 = key.substring(newKey.length)
         val k2 = k.substring(newKey.length)
         val cc = OpenHashMap(
-          k1(0) -> RouteNode(k1, value, kind, children, childParameter),
-          k2(0) -> RouteNode(k2, Some(v), StaticRoute)
+          k1(0) -> RouteNode(k1, kind, values, children, childParameter),
+          k2(0) -> RouteNode(k2, StaticRoute, OpenHashMap(m -> v))
         )
-        RouteNode(newKey, None, StaticRoute, cc, None)
+        RouteNode(newKey, StaticRoute, OpenHashMap.empty, cc, None)
       }
     }
   }
 
-  private def addToChildParameter(k: String, v: T) = {
+  private def addToChildParameter(m: RouteMethod, k: String, v: T) = {
     require(nonStaticPrefix(k), s"Key '$k' must start with ':' or '*'")
     require(kind == StaticRoute, s"$kind cannot contain nested routes: $k")
 
@@ -156,31 +192,32 @@ private[trie] case class RouteNode[T](
         require(node.kind == route, s"Conflict on ${node.kind} =!= $route")
 
         node
-      case None => RouteNode[T](keyName, None, route)
+      case None => RouteNode[T](keyName, route)
     }
     val cn =
-      if (route.isInstanceOf[WildcardRoute]) Some(cp.copy(value = Some(v)))
+      if (route.isInstanceOf[WildcardRoute])
+        Some(cp.copy(values = cp.values += ((m, v))))
       else {
-        cp.children += (keyPostfix(0) -> cp.addToChildren(keyPostfix, v))
+        cp.children += (keyPostfix(0) -> cp.addToChildren(m, keyPostfix, v))
         Some(cp)
       }
 
     this.copy(childParameter = cn)
   }
 
-  private def addToChildren(k: String, v: T): RouteNode[T] = {
+  private def addToChildren(m: RouteMethod, k: String, v: T): RouteNode[T] = {
     require(!kind.isInstanceOf[WildcardRoute], s"Wildcard cannot contain nested routes: $k")
 
     children.get(k(0)) match {
-      case Some(n) => n + (k -> v)
+      case Some(n) => n + (k -> (m, v))
       case None =>
         val keyPrefix = k.takeWhile(!nonStaticPrefix(_))
         if (keyPrefix.length == k.length)
-          RouteNode(keyPrefix, Some(v), StaticRoute)
+          RouteNode(keyPrefix, StaticRoute, OpenHashMap(m -> v))
         else if (keyPrefix.nonEmpty)
-          RouteNode(keyPrefix, None, StaticRoute)
-            .addToChildParameter(k.substring(keyPrefix.length), v)
-        else addToChildParameter(k, v)
+          RouteNode(keyPrefix, StaticRoute)
+            .addToChildParameter(m, k.substring(keyPrefix.length), v)
+        else addToChildParameter(m, k, v)
     }
   }
 
@@ -202,13 +239,13 @@ private[trie] case class RouteNode[T](
     f(a, b, 0, new StringBuffer)
   }
 
-  def foreach[U](f: ((String, T)) => U): Unit = {
+  def foreach[U](f: ((String, (RouteMethod, T))) => U): Unit = {
     foreach(f, "")
   }
 
-  private def foreach[U](f: ((String, T)) => U, keyPrefix: String): Unit = {
+  private def foreach[U](f: ((String, (RouteMethod, T))) => U, keyPrefix: String): Unit = {
     val fullKey = keyPrefix + key
-    value.foreach(v => f(fullKey -> v))
+    values.foreach(v => f(fullKey -> v))
     children.foreach {
       case (_, c: RouteNode[T]) => c.foreach(f, fullKey)
     }
@@ -229,7 +266,7 @@ private[trie] case class RouteNode[T](
       .map(_.toString(padding + 1))
       .getOrElse("")
     s"""
-$p$key -> $value, $kind =>
+$p$key -> $values, $kind =>
 $p  children: $childrenS
 $p  childParameter: $childS
 """.stripMargin
@@ -239,9 +276,9 @@ $p  childParameter: $childS
 }
 
 object RouteTrie {
-  def empty[T]: RouteNode[T] = RouteNode("/", None, StaticRoute)
+  def empty[T]: RouteNode[T] = RouteNode("/", StaticRoute)
 
-  def apply[T](kvs: (String, T)*): RouteNode[T] =
+  def apply[T](kvs: (String, (RouteMethod, T))*): RouteNode[T] =
     kvs.foldLeft[RouteNode[T]](empty) {
       case (t, (k, v)) =>
         require(k.nonEmpty, s"Url can't be empty: $v")
