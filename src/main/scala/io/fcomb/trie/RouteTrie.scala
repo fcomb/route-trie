@@ -221,22 +221,15 @@ private[trie] case class RouteNode[T](
     }
   }
 
-  private def longestCommonPart(a: String, b: String) = {
-    @tailrec @inline
-    def f(
-      a:          String,
-      b:          String,
-      index:      Int,
-      commonPart: StringBuffer
-    ): String = {
-      (a.headOption, b.headOption) match {
-        case (Some(c1), Some(c2)) if c1 == c2 =>
-          f(a.substring(1), b.substring(1), index + 1, commonPart.append(c1))
-        case _ => commonPart.toString
-      }
-    }
+  private def longestCommonPart(a: String, b: String): String = {
+    val minLength = Math.min(a.length, b.length)
 
-    f(a, b, 0, new StringBuffer)
+    @tailrec
+    def f(pos: Int): String = {
+      if (pos < minLength && a.charAt(pos) == b.charAt(pos)) f(pos + 1)
+      else a.substring(0, pos)
+    }
+    f(0)
   }
 
   def foreach[U](f: ((String, (RouteMethod, T))) => U): Unit = {
