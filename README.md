@@ -1,5 +1,7 @@
 # URI Route Trie
 
+[![Build Status](https://travis-ci.org/fcomb/route-trie.svg?branch=develop)](https://travis-ci.org/fcomb/route-trie)
+
 High performance URI router based on [radix trie](https://en.wikipedia.org/wiki/Radix_tree) structure.
 
 ## Add to project
