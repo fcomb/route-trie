@@ -146,7 +146,7 @@ private[trie] case class RouteNode[T](
     val route = keyName.head match {
       case ':' => ParameterRoute(keyName.substring(1))
       case '*' =>
-        require(keyPostfix.isEmpty || keyPostfix == "/", "Wildcard cannot contain nested routes: $keyPostfix")
+        require(keyPostfix.isEmpty || keyPostfix == "/", s"Wildcard cannot contain nested routes: $keyPostfix")
 
         WildcardRoute(keyName.substring(1))
     }
