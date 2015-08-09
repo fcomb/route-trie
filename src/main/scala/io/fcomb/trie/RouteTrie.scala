@@ -151,9 +151,10 @@ private[trie] case class RouteNode[T](
         WildcardRoute(keyName.substring(1))
     }
     val cp = childParameter match {
-      case Some(n) =>
-        if (n.kind == route) n
-        else throw new Exception(s"Conflict on ${n.kind} =!= $route")
+      case Some(node) =>
+        require(node.kind == route, s"Conflict on ${node.kind} =!= $route")
+
+        node
       case None => RouteNode[T](keyName, None, route)
     }
     val cn =
