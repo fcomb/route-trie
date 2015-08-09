@@ -22,19 +22,20 @@ class RouteTrieSpec extends Specification {
         "/урл/тест/DFSD©Δ§ß∞¢" -> (GET, 10),
         "/:kek" -> (GET, 11)
       )
-      tree.size must_== 13
+
+      tree.size must_== 12
 
       tree.get(GET, "/user") must_== Some(1, None)
       tree.get(GET, "/user/12") must_== Some(5, Some(OpenHashMap("id" -> "12")))
       tree.get(GET, "/user/12/") must_== Some(5, Some(OpenHashMap("id" -> "12")))
       tree.get(GET, "/user/12//") must_== None
       tree.get(GET, "/user/12/x/333") must_== Some(12, Some(OpenHashMap("id" -> "12", "xid" -> "333")))
-      tree.get(POST, "/user/12/x/444") must_== Some(13, Some(OpenHashMap("id" -> "12", "xid" -> "444")))
+      tree.get(POST, "/user/12/x/444/") must_== Some(13, Some(OpenHashMap("id" -> "12", "xid" -> "444")))
       tree.get(GET, "/user/about") must_== Some(3, None)
       tree.get(GET, "/ua/kek") must_== Some(7, None)
       tree.get(POST, "/ua/kek") must_== None
       tree.get(GET, "user") must_== None
-      tree.get(GET, "/f/тест/DFSD©Δ§ß∞¢") must_== Some(9, Some(OpenHashMap("file" -> "тест/DFSD©Δ§ß∞¢/")))
+      tree.get(GET, "/f/тест/DFSD©Δ§ß∞¢") must_== Some(9, Some(OpenHashMap("file" -> "тест/DFSD©Δ§ß∞¢")))
       tree.get(GET, "/урл/тест/DFSD©Δ§ß∞¢") must_== Some(10, None)
       tree.get(GET, "/no_url") must_== Some(11, Some(OpenHashMap("kek" -> "no_url")))
     }
