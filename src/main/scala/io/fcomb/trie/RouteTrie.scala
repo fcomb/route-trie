@@ -39,10 +39,11 @@ private[trie] case class RouteNode[T](
   if (kind == StaticRoute)
     require(!key.exists(nonStaticPrefix), s"Static route node must not start with prefix symbol ':' or '*': $this")
 
-  def get(k: String) = getTrie(cleanKey(k)) match {
-    case Some((RouteNode(_, Some(v), _, _, _), p)) => (v, p)
-    case _                                         => None
-  }
+  def get(k: String) =
+    getTrie(cleanKey(k)) match {
+      case Some((RouteNode(_, Some(v), _, _, _), p)) => Some(v, p)
+      case _                                         => None
+    }
 
   private def getTrie(
     k:      String,
