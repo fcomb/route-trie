@@ -6,7 +6,7 @@ import scala.collection.mutable.OpenHashMap
 
 class RouteTrieSpec extends Specification {
   "RouteTrie" should {
-    "match URLs" in {
+    "match URIs" in {
       val tree = RouteTrie(
         "/user" -> (GET, 1),
         "/userify" -> (GET, 2),
@@ -39,7 +39,7 @@ class RouteTrieSpec extends Specification {
       tree.get(GET, "/no_url") must_== Some(11, Some(OpenHashMap("kek" -> "no_url")))
     }
 
-    "validate URL prefix" in {
+    "validate URI prefix" in {
       def tree = RouteTrie("test" -> (GET, 0))
       tree.size must throwA[IllegalArgumentException]
     }

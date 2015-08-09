@@ -2,7 +2,7 @@ name := "route-trie"
 
 organization := "io.fcomb"
 
-version := "0.2.0"
+version := "0.2.1"
 
 scalaVersion := "2.11.7"
 

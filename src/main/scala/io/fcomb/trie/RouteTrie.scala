@@ -1,5 +1,6 @@
 package io.fcomb.trie
 
+import java.net.URI
 import scala.annotation.tailrec
 import scala.collection.generic.{ CanBuildFrom, ImmutableMapFactory }
 import scala.collection.mutable.OpenHashMap
@@ -284,6 +285,7 @@ object RouteTrie {
         require(k.nonEmpty, s"Url can't be empty: $v")
         require(k.head == '/', s"Url must start with prefix symbol '/': $v")
 
-        t + (k, v)
+        val uri = new URI(k)
+        t + (uri.getRawPath, v)
     }
 }
