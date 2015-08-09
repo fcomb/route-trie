@@ -75,8 +75,7 @@ private[trie] case class RouteNode[T](
         case Some(v) => Some(v, p)
         case _       => None
       }
-      case _ =>
-        None
+      case _ => None
     }
 
   private def getTrie(
@@ -266,6 +265,7 @@ private[trie] case class RouteNode[T](
     val childS = childParameter
       .map(_.toString(padding + 1))
       .getOrElse("")
+
     s"""
 $p$key -> $values, $kind =>
 $p  children: $childrenS

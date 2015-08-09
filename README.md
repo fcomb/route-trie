@@ -24,7 +24,7 @@ libraryDependencies += "io.fcomb" %% "route-trie" % "0.2.1"
 import io.fcomb.trie.RouteTrie
 import io.fcomb.trie.RouteMethods._
 
-val tree = RouteTrie(
+val tree = RouteTrie[Int](
   "/user" -> (GET, 1),
   "/user/:id" -> (GET, 2),
   "/file/*file" -> (POST, 3)
