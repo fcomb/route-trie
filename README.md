@@ -1,6 +1,7 @@
 # URI Route Trie
 
 [![Build Status](https://travis-ci.org/fcomb/route-trie.svg?branch=develop)](https://travis-ci.org/fcomb/route-trie)
+[![License](https://img.shields.io/:license-MIT-green.svg)](http://opensource.org/licenses/MIT)
 
 High performance URI router based on [radix trie](https://en.wikipedia.org/wiki/Radix_tree) structure.
 
@@ -31,7 +32,3 @@ val tree = RouteTrie[Int](
 )
 tree.get(GET, "/user/12") // will return Some((2, Some(OpenHashMap("id" -> "12"))))
 ```
-
-## License
-
-MIT
