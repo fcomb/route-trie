@@ -87,21 +87,21 @@ case class RouteNode[T](
   if (kind == StaticRoute)
     require(!key.exists(nonStaticPrefix), s"Static route node must not start with prefix symbol ':' or '*': $this")
 
-  def get(m: RouteMethod, k: String) = {
+  def get(m: RouteMethod, k: String): Option[(T, Option[OpenHashMap[String, String]])] = {
     val res = getTrie(k)
     if (res != null && res._1.values != null) {
       val v = res._1.values(m.id)
       if (v == null) None
-      else Some(v, Option(res._2))
+      else Some(v.asInstanceOf[T], Option(res._2))
     } else None
   }
 
-  def getRaw(m: RouteMethod, k: String) = {
+  def getRaw(m: RouteMethod, k: String): (T, OpenHashMap[String, String]) = {
     val res = getTrie(k)
     if (res != null && res._1.values != null) {
       val v = res._1.values(m.id)
       if (v == null) null
-      else (v, res._2)
+      else (v.asInstanceOf[T], res._2)
     } else null
   }
 
