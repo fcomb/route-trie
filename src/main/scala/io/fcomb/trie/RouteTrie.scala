@@ -72,7 +72,7 @@ object RouteMethods {
 import RouteMethods._
 
 @SerialVersionUID(1L)
-private[trie] case class RouteNode[T](
+case class RouteNode[T](
     key:            String,
     kind:           RouteKind,
     values:         Array[Any]            = null,
