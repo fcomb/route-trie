@@ -20,10 +20,11 @@ class RouteTrieSpec extends Specification {
         "/user/g/h/n" -> (GET, 8),
         "/f/*file" -> (GET, 9),
         "/урл/тест/DFSD©Δ§ß∞¢" -> (GET, 10),
+        "test" -> (GET, 12),
         "/:kek" -> (GET, 11)
       )
 
-      tree.size must_== 12
+      tree.size must_== 13
 
       tree.get(GET, "/user") must_== Some(1, None)
       tree.get(GET, "/user/12") must_== Some(5, Some(OpenHashMap("id" -> "12")))
@@ -37,12 +38,8 @@ class RouteTrieSpec extends Specification {
       tree.get(GET, "user") must_== None
       tree.get(GET, "/f/тест/DFSD©Δ§ß∞¢") must_== Some(9, Some(OpenHashMap("file" -> "тест/DFSD©Δ§ß∞¢")))
       tree.get(GET, "/урл/тест/DFSD©Δ§ß∞¢") must_== Some(10, None)
+      tree.get(GET, "/test") must_== Some(12, None)
       tree.get(GET, "/no_url") must_== Some(11, Some(OpenHashMap("kek" -> "no_url")))
-    }
-
-    "validate URI prefix" in {
-      def tree = RouteTrie("test" -> (GET, 0))
-      tree.size must throwA[IllegalArgumentException]
     }
 
     "validate wildcard children" in {
@@ -67,6 +64,37 @@ class RouteTrieSpec extends Specification {
         "/test/:file2" -> (GET, 1)
       )
       tree.size must throwA[IllegalArgumentException]
+    }
+
+    "validate multiple parameters" in {
+      def tree = RouteTrie(
+        "/test/:first_:second" -> (GET, 0)
+      )
+      tree.size must throwA[IllegalArgumentException]
+    }
+
+    "validate parameters with same type and name" in {
+      def tree = RouteTrie(
+        "/test/:first/:first" -> (GET, 0)
+      )
+      tree.size must throwA[IllegalArgumentException]
+    }
+
+    "validate parameters with similar name" in {
+      def tree = RouteTrie(
+        "/test/:first/*first" -> (GET, 0)
+      )
+      tree.size must throwA[IllegalArgumentException]
+    }
+
+    "normalize URIs" in {
+      RouteTrie.normalizeUri("") must_== "/"
+      RouteTrie.normalizeUri("./") must_== "/"
+      RouteTrie.normalizeUri("/.") must_== "/"
+      RouteTrie.normalizeUri("aa/") must_== "/aa"
+      RouteTrie.normalizeUri("aa") must_== "/aa"
+      RouteTrie.normalizeUri("/a/./") must_== "/a"
+      RouteTrie.normalizeUri(".////b") must_== "/b"
     }
   }
 }

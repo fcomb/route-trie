@@ -4,6 +4,7 @@ import java.net.URI
 import scala.annotation.tailrec
 import scala.collection.generic.{ CanBuildFrom, ImmutableMapFactory }
 import scala.collection.mutable.{ LongMap, OpenHashMap }
+import scala.collection.immutable.HashSet
 
 private[trie] object RouteKinds {
   sealed trait RouteKind
@@ -347,10 +348,45 @@ object RouteTrie {
   def apply[T](kvs: (String, (RouteMethod, T))*): RouteNode[T] =
     kvs.foldLeft[RouteNode[T]](empty) {
       case (t, (k, v)) =>
-        require(k.nonEmpty, s"Url can't be empty: $v")
-        require(k.head == '/', s"Url must start with prefix symbol '/': $v")
-
-        val uri = new URI(k)
-        t + (uri.getRawPath, v)
+        val uri = normalizeUri(k)
+        validateUri(uri) match {
+          case Left(e)  => throw new IllegalArgumentException(e)
+          case Right(_) => t + (uri, v)
+        }
     }.repack
+
+  def normalizeUri(s: String): String = {
+    if (s.isEmpty) "/"
+    else {
+      val uri = new URI(s).normalize.getRawPath
+      val path =
+        if (uri.length > 1 && uri.last == '/') uri.dropRight(1)
+        else uri
+      if (path.headOption == Some('/')) path
+      else "/".concat(path)
+    }
+  }
+
+  private val nameFormat = "(:|\\*)([A-Za-z0-9-\\_]+)\\z".r
+
+  def validateUri(uri: String): Either[String, Unit] = {
+    if (uri.isEmpty) Left(s"URI can't be empty: $uri")
+    else if (uri.head != '/') Left(s"URI must start with prefix symbol '/': $uri")
+    else uri.split('/').drop(1).foldLeft[Either[String, HashSet[String]]](Right(HashSet.empty[String])) {
+      case (Right(s), p) =>
+        val pi = p.count(c => c == ':' || c == '*')
+        if (pi == 0) Right(s)
+        else if (pi > 1) Left(s"Multiple parameters cannot be nested in the same path part: $p")
+        else nameFormat.findFirstMatchIn(p.dropWhile(c => c != ':' && c != '*')) match {
+          case Some(m) =>
+            val name = m.group(2)
+            if (s.contains(name)) Left(s"Duplicate parameter name: $name")
+            else Right(s + name)
+          case None => Left("Invalid format of parameter name")
+        }
+    } match {
+      case Right(_) => Right(())
+      case Left(e)  => Left(e)
+    }
+  }
 }
