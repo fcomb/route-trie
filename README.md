@@ -10,13 +10,13 @@ High performance URI router based on [radix trie](https://en.wikipedia.org/wiki/
 ### Add resolvers to your `build.sbt`
 
 ```scala
-resolvers += Resolver.bintrayRepo("fcomb", "maven")
+resolvers += Resolver.url("fcomb", url("https://dl.bintray.com/fcomb/maven"))(Resolver.ivyStylePatterns)
 ```
 
 ### Add dependencies to your `build.sbt`
 
 ```scala
-libraryDependencies += "io.fcomb" %% "route-trie" % "0.3.0.1"
+libraryDependencies += "io.fcomb" %% "route-trie" % "0.3.1"
 ```
 
 ## Usage

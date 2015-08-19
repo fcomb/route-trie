@@ -384,6 +384,7 @@ object RouteTrie {
             else Right(s + name)
           case None => Left("Invalid format of parameter name")
         }
+      case (e @ Left(_), _) => e
     } match {
       case Right(_) => Right(())
       case Left(e)  => Left(e)
