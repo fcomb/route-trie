@@ -369,7 +369,7 @@ object RouteTrie {
 
   private val nameFormat = "(:|\\*)([A-Za-z0-9-\\_]+)\\z".r
 
-  def validateUri(uri: String): Either[String, Unit] = {
+  def validateUri(uri: String): Either[String, HashSet[String]] = {
     if (uri.isEmpty) Left(s"URI can't be empty: $uri")
     else if (uri.head != '/') Left(s"URI must start with prefix symbol '/': $uri")
     else uri.split('/').drop(1).foldLeft[Either[String, HashSet[String]]](Right(HashSet.empty[String])) {
@@ -385,9 +385,6 @@ object RouteTrie {
           case None => Left("Invalid format of parameter name")
         }
       case (e @ Left(_), _) => e
-    } match {
-      case Right(_) => Right(())
-      case Left(e)  => Left(e)
     }
   }
 }
