@@ -16,7 +16,7 @@ resolvers += Resolver.url("fcomb", url("https://dl.bintray.com/fcomb/maven"))(Re
 ### Add dependencies to your `build.sbt`
 
 ```scala
-libraryDependencies += "io.fcomb" %% "route-trie" % "0.3.1.1"
+libraryDependencies += "io.fcomb" %% "route-trie" % "0.3.1.2"
 ```
 
 ## Usage

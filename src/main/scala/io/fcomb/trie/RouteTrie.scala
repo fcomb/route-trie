@@ -5,6 +5,7 @@ import scala.annotation.tailrec
 import scala.collection.generic.{ CanBuildFrom, ImmutableMapFactory }
 import scala.collection.mutable.{ LongMap, OpenHashMap }
 import scala.collection.immutable.HashSet
+import scala.util.{ Try, Success, Failure }
 
 private[trie] object RouteKinds {
   sealed trait RouteKind
@@ -367,24 +368,28 @@ object RouteTrie {
     }
   }
 
-  private val nameFormat = "(:|\\*)([A-Za-z0-9-\\_]+)\\z".r
+  private val nameFormat = """(:|\*)([\w\-]+)\z""".r
 
-  def validateUri(uri: String): Either[String, HashSet[String]] = {
-    if (uri.isEmpty) Left(s"URI can't be empty: $uri")
-    else if (uri.head != '/') Left(s"URI must start with prefix symbol '/': $uri")
-    else uri.split('/').drop(1).foldLeft[Either[String, HashSet[String]]](Right(HashSet.empty[String])) {
-      case (Right(s), p) =>
-        val pi = p.count(c => c == ':' || c == '*')
-        if (pi == 0) Right(s)
-        else if (pi > 1) Left(s"Multiple parameters cannot be nested in the same path part: $p")
-        else nameFormat.findFirstMatchIn(p.dropWhile(c => c != ':' && c != '*')) match {
-          case Some(m) =>
-            val name = m.group(2)
-            if (s.contains(name)) Left(s"Duplicate parameter name: $name")
-            else Right(s + name)
-          case None => Left("Invalid format of parameter name")
+  def validateUri(u: String): Either[String, HashSet[String]] = {
+    Try(new URI(u).normalize.getRawPath) match {
+      case Success(uri) =>
+        if (uri.isEmpty) Left(s"URI can't be empty: $uri")
+        else if (uri.head != '/') Left(s"URI must start with prefix symbol '/': $uri")
+        else uri.split('/').drop(1).foldLeft[Either[String, HashSet[String]]](Right(HashSet.empty[String])) {
+          case (Right(s), p) =>
+            val pi = p.count(c => c == ':' || c == '*')
+            if (pi == 0) Right(s)
+            else if (pi > 1) Left(s"Multiple parameters cannot be nested in the same path part: $p")
+            else nameFormat.findFirstMatchIn(p.dropWhile(c => c != ':' && c != '*')) match {
+              case Some(m) =>
+                val name = m.group(2)
+                if (s.contains(name)) Left(s"Duplicate parameter name: $name")
+                else Right(s + name)
+              case None => Left("Invalid format of parameter name")
+            }
+          case (e @ Left(_), _) => e
         }
-      case (e @ Left(_), _) => e
+      case Failure(e) => Left(e.getMessage)
     }
   }
 }
