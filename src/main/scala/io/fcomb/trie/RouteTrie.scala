@@ -2,10 +2,10 @@ package io.fcomb.trie
 
 import java.net.URI
 import scala.annotation.tailrec
-import scala.collection.generic.{ CanBuildFrom, ImmutableMapFactory }
-import scala.collection.mutable.{ LongMap, OpenHashMap }
+import scala.collection.generic.{CanBuildFrom, ImmutableMapFactory}
+import scala.collection.mutable.{LongMap, OpenHashMap}
 import scala.collection.immutable.HashSet
-import scala.util.{ Try, Success, Failure }
+import scala.util.{Try, Success, Failure}
 
 private[trie] object RouteKinds {
   sealed trait RouteKind
@@ -15,14 +15,14 @@ private[trie] object RouteKinds {
 
   @SerialVersionUID(1L)
   case class WildcardRoute( // /*param
-      name: String
+    name: String
   ) extends RouteKind {
     require(name.nonEmpty, "name can't be empty")
   }
 
   @SerialVersionUID(1L)
   case class ParameterRoute( // /:param
-      name: String
+    name: String
   ) extends RouteKind {
     require(name.nonEmpty, "name can't be empty")
   }
@@ -75,11 +75,11 @@ import RouteMethods._
 
 @SerialVersionUID(1L)
 case class RouteNode[T](
-    key:            String,
-    kind:           RouteKind,
-    values:         Array[Any]            = null,
-    children:       LongMap[RouteNode[T]] = null,
-    childParameter: RouteNode[T]          = null
+  key: String,
+  kind: RouteKind,
+  values: Array[Any] = null,
+  children: LongMap[RouteNode[T]] = null,
+  childParameter: RouteNode[T] = null
 ) extends Traversable[(String, (RouteMethod, T))] {
   require(key.nonEmpty, s"Key can't be empty: $this")
   if (kind.isInstanceOf[WildcardRoute])
@@ -108,7 +108,7 @@ case class RouteNode[T](
   }
 
   private def getTrie(
-    k:      String,
+    k: String,
     params: OpenHashMap[String, String] = null
   ): (RouteNode[T], OpenHashMap[String, String]) = {
     @inline def getParams() =
@@ -121,13 +121,13 @@ case class RouteNode[T](
         if (children == null) null
         else children.get(k(key.length)) match {
           case Some(n) => n.getTrie(k.substring(key.length), params)
-          case _       => null
+          case _ => null
         }
       } else if (kind.isInstanceOf[ParameterRoute]) {
         if (children == null) null
         else children.get(k.head) match {
           case Some(n) => n.getTrie(k, params)
-          case _       => null
+          case _ => null
         }
       } else null
 
@@ -162,14 +162,16 @@ case class RouteNode[T](
   private def nonStaticPrefix(k: String): Boolean =
     nonStaticPrefix(k.head)
 
+  @inline
+  private def normalizePath(p: String) =
+    if (p.length > 1 && p.last == '/') p.dropRight(1)
+    else p
+
   def `+`(kv: (String, (RouteMethod, T))): RouteNode[T] = kv match {
-    case (kk, (m, v)) =>
-      require(kk.nonEmpty, s"Key can't be empty: $kv")
+    case (path, (m, v)) =>
+      require(path.nonEmpty, s"Key can't be empty: $kv")
 
-      val k =
-        if (kk.length > 1 && kk.last == '/') kk.dropRight(1)
-        else kk
-
+      val k = normalizePath(path)
       if (nonStaticPrefix(k)) addToChildParameter(m, k, v)
       else {
         if (k == key) {
@@ -257,7 +259,7 @@ case class RouteNode[T](
 
     val n =
       if (children == null) null
-      else children.get(k(0)).getOrElse(null)
+      else children.get(k.head).getOrElse(null)
     if (n == null) {
       val keyPrefix = k.takeWhile(!nonStaticPrefix(_))
       if (keyPrefix.length == k.length) {
@@ -270,6 +272,76 @@ case class RouteNode[T](
       else addToChildParameter(m, k, v)
     } else n.+(k -> (m, v))
   }
+
+  def `-`(kv: (String, (RouteMethod, T))): RouteNode[T] = kv match {
+    case (k, (m, v)) =>
+      def fNested(path: String, n: RouteNode[T]): RouteNode[T] =
+        if (nonStaticPrefix(path)) n.copy(
+          childParameter = f(path, n.childParameter).getOrElse(null)
+        )
+        else if (n.children != null) {
+          n.children.get(path.head) match {
+            case Some(cn) =>
+              val nn = n.copy(children = LongMap(n.children.toSeq: _*))
+              f(path, cn) match {
+                case Some(rn) =>
+                  nn.children += (path.head, rn)
+                case _ =>
+                  nn.children -= path.head
+              }
+              nn
+            case _ => n
+          }
+        } else n
+
+      def f(path: String, n: RouteNode[T]): Option[RouteNode[T]] = {
+        if (n == null) None
+        else {
+          val key = n.key
+          val rn =
+            if (nonStaticPrefix(path)) {
+              val keyName = path.takeWhile(_ != '/')
+              val keyPostfix = path.substring(keyName.length)
+              if (keyName == key) {
+                if (keyPostfix.isEmpty && n.values != null && n.values(m.id) == v) {
+                  val nn = n.copy(values = Array[Any](n.values: _*))
+                  nn.values(m.id) = null
+                  nn
+                } else if (keyPostfix.nonEmpty)
+                  fNested(keyPostfix, n)
+                else n
+              } else n
+            } else {
+              if (path == key) {
+                if (n.values != null && n.values(m.id) == v) {
+                  val nn = n.copy(values = Array[Any](n.values: _*))
+                  nn.values(m.id) = null
+                  nn
+                } else n
+              } else if (path.startsWith(key))
+                fNested(path.drop(key.length), n)
+              else n
+            }
+
+          if ((rn.children == null || rn.children.isEmpty) &&
+            (rn.childParameter == null) &&
+            (rn.values == null || rn.values.forall(_ == null))) None
+          else Some(rn)
+        }
+      }
+
+      val path = normalizePath(k) match {
+        case p if p.length > 1 && p.head != '/' => s"/$p"
+        case p => p
+      }
+      f(path, this) match {
+        case Some(res) => res
+        case _ => RouteTrie.empty
+      }
+  }
+
+  def remove(k: String, m: RouteMethod, v: T) =
+    this - (k, (m, v))
 
   private def longestCommonPart(a: String, b: String): String = {
     val minLength = Math.min(a.length, b.length)
@@ -316,7 +388,7 @@ case class RouteNode[T](
 
   override def equals(obj: Any): Boolean = obj match {
     case that: RouteNode[T] => that.toMap == this.toMap
-    case _                  => false
+    case _ => false
   }
 
   private def toString(padding: Int): String = {
@@ -351,7 +423,7 @@ object RouteTrie {
       case (t, (k, v)) =>
         val uri = normalizeUri(k)
         validateUri(uri) match {
-          case Left(e)  => throw new IllegalArgumentException(e)
+          case Left(e) => throw new IllegalArgumentException(e)
           case Right(_) => t + (uri, v)
         }
     }.repack
