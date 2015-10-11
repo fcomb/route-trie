@@ -16,7 +16,7 @@ resolvers += Resolver.bintrayRepo("fcomb", "maven")
 ### Add dependencies to your `build.sbt`
 
 ```scala
-libraryDependencies += "io.fcomb" %% "route-trie" % "0.3.2"
+libraryDependencies += "io.fcomb" %% "route-trie" % "0.4.0"
 ```
 
 ## Usage
