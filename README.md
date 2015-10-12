@@ -26,9 +26,9 @@ import io.fcomb.trie.RouteTrie
 import io.fcomb.trie.RouteMethods._
 
 val tree = RouteTrie[Int](
-  "/user" -> (GET, 1),
-  "/user/:id" -> (GET, 2),
-  "/file/*file" -> (POST, 3)
+  "/users" -> (GET, 1),
+  "/users/:id" -> (GET, 2),
+  "/files/*file" -> (POST, 3)
 )
-tree.get(GET, "/user/12") // will return Some((2, Some(OpenHashMap("id" -> "12"))))
+tree.get(GET, "/users/12") // will return Some((2, Some(OpenHashMap("id" -> "12"))))
 ```
